@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Lemma implementation — Minecraftuuuum!</title>
+  <link rel="stylesheet" href="/ucc.css" />
+</head>
+<body>
+  <nav class="nav">
+    <a href="/library">Servers</a>
+    <a href="/lemma-library">Lemmas</a>
+    <a href="/lemma-implementation">Implement</a>
+    <a href="/block-recipes">Blocks / recipes</a>
+    <a href="/video-generation">Video generation</a>
+    <a href="/pixellight">PixelLight</a>
+  </nav>
+  <main class="li-main">
+    <h1>Lemma implementation</h1>
+    <p>Inventory like Continuuuum lemma-completion. Skinning is a PixelLight voxel bind, not a player PNG. Pose/mesh backends are not vendored.</p>
+    <div id="bars" class="li-bars"></div>
+    <p>
+      <button type="button" id="sync">Sync thesaurus</button>
+      <span id="sync-msg" class="wa-meta"></span>
+    </p>
+    <div class="br-split li-split">
+      <section>
+        <label>Filter <input id="q" placeholder="term or registry-id" /></label>
+        <label>Kind
+          <select id="kind">
+            <option value="">all</option>
+            <option value="action">action</option>
+            <option value="entity">entity</option>
+            <option value="block">block</option>
+            <option value="lemma">lemma</option>
+          </select>
+        </label>
+        <label>Implemented
+          <select id="impl">
+            <option value="">all</option>
+            <option value="true">yes</option>
+            <option value="false">no</option>
+          </select>
+        </label>
+        <ul id="list" class="br-list"></ul>
+      </section>
+      <section id="detail">
+        <p class="wa-meta">Select a lemma.</p>
+      </section>
+    </div>
+  </main>
+  <script src="/components/voxel-ingest.js"></script>
+  <script>
+    const detail = document.getElementById("detail");
+    let features = [];
+    let selected = null;
+
+    function pct(n, d) {
+      return d ? Math.round((100 * n) / d) + "%" : "0%";
+    }
+
+    async function loadSummary() {
+      const s = await fetch("/api/lemma-implementation/summary").then((r) => r.json());
+      document.getElementById("bars").innerHTML =
+        bar("builtin", s.builtin, s.total) +
+        bar("implemented", s.implemented, s.total) +
+        bar("handler", s.hasHandler, s.total) +
+        bar("voxel skin", s.hasVoxelSkin, s.total);
+    }
+
+    function bar(label, n, total) {
+      return '<div class="li-bar"><span>' + label + " " + n + "/" + total + " · " + pct(n, total) +
+        '</span><div class="li-bar-track"><div class="li-bar-fill" style="width:' + pct(n, total) + '"></div></div></div>';
+    }
+
+    async function loadList() {
+      const q = document.getElementById("q").value;
+      const kind = document.getElementById("kind").value;
+      const impl = document.getElementById("impl").value;
+      const params = new URLSearchParams();
+      if (q) params.set("q", q);
+      if (kind) params.set("kind", kind);
+      if (impl) params.set("implemented", impl);
+      const rows = await fetch("/api/lemma-implementation/entries?" + params).then((r) => r.json());
+      const host = document.getElementById("list");
+      host.innerHTML = "";
+      rows.forEach((row) => {
+        const li = document.createElement("li");
+        const b = document.createElement("button");
+        b.type = "button";
+        b.className = "pick" + (selected && selected.id === row.id ? " on" : "");
+        b.innerHTML = "<span>" + row.term + "</span><span class=\"fam\">" +
+          (row.kind || "") + (row.registryId ? " · " + row.registryId : "") +
+          (row.isImplemented ? " · impl" : "") +
+          (row.hasNeoForgeHandler ? " · handler" : "") + "</span>";
+        b.onclick = () => openRow(row.id);
+        li.appendChild(b);
+        host.appendChild(li);
+      });
+    }
+
+    function imageUrlFor(row) {
+      const art = row.voxelArtworkId;
+      if (!art) return "";
+      if (art.indexOf("rec_") === 0) {
+        return "/api/video-animation/" + art + "/frames/" + (row.voxelT == null ? 0 : row.voxelT);
+      }
+      return "";
+    }
+
+    async function openRow(id) {
+      selected = await fetch("/api/lemma-implementation/entries/" + id).then((r) => r.json());
+      loadList();
+      const featChecks = features.map((f) => {
+        const on = (selected.features || []).indexOf(f.id) >= 0;
+        return '<label class="li-check"><input type="checkbox" data-feat="' + f.id + '"' +
+          (on ? " checked" : "") + " /> " + f.label +
+          (f.available ? "" : " <span class=\"fam\">offline</span>") + "</label>";
+      }).join("");
+      const featOpts = features.map((f) =>
+        "<option value=\"" + f.id + "\">" + f.label + " · " + f.kind +
+        (f.available ? " · available" : " · missing") + "</option>").join("");
+      detail.innerHTML =
+        "<h2>" + selected.term + "</h2>" +
+        "<p class=\"wa-meta\">" + (selected.entryId || "") + "<br>kind=" + (selected.kind || "") +
+        " · registry=" + (selected.registryId || "—") +
+        " · pose=" + (selected.poseEngine || "—") +
+        " · skeleton=" + (selected.skeletonKind || "—") +
+        " · handler=" + selected.hasNeoForgeHandler + "</p>" +
+        "<p><button type=\"button\" id=\"toggle-impl\">" +
+        (selected.isImplemented ? "Mark not implemented" : "Mark implemented") + "</button></p>" +
+        "<h3>Voxel skin</h3>" +
+        "<p class=\"wa-meta\">spatial-skin analog: artworkId : face : u : v [:t]</p>" +
+        "<label>artworkId <input id=\"sk-art\" value=\"" + (selected.voxelArtworkId || "") + "\" placeholder=\"rec_… or demo\" /></label>" +
+        "<label>face <select id=\"sk-face\">" +
+        ["north","south","east","west","up","down"].map((f) =>
+          "<option" + (f === (selected.voxelFace || "north") ? " selected" : "") + ">" + f + "</option>").join("") +
+        "</select></label>" +
+        "<label>t <input id=\"sk-t\" type=\"number\" value=\"" + (selected.voxelT == null ? "" : selected.voxelT) + "\" /></label>" +
+        "<p><button type=\"button\" id=\"sk-bind\">Bind</button> <span class=\"wa-meta\" id=\"sk-addr\">" +
+        (selected.voxelAddress || "unbound") + "</span></p>" +
+        "<div id=\"sk-ingest\"></div>" +
+        "<h3>Active server models / features</h3>" +
+        "<label>Available backends (listbox)<select id=\"feat-box\" multiple size=\"5\">" + featOpts + "</select></label>" +
+        "<label>Active server <select id=\"srv-box\"><option value=\"\">(UCC catalog)</option></select></label>" +
+        "<div class=\"li-checks\">" + featChecks + "</div>" +
+        "<h3>Implement (Codestral)</h3>" +
+        "<textarea id=\"chat-msg\" rows=\"4\">Implement Minecraftuuuum lemma {P:" + selected.term +
+        "} for NeoForge. Registry " + (selected.registryId || "n/a") + ". Do not emit Unity.</textarea>" +
+        "<p><button type=\"button\" id=\"chat-send\">Ask Codestral</button></p>" +
+        "<pre id=\"chat-out\"></pre>";
+
+      document.getElementById("toggle-impl").onclick = async () => {
+        await patch({ isImplemented: !selected.isImplemented });
+      };
+      document.getElementById("sk-bind").onclick = async () => {
+        const t = document.getElementById("sk-t").value;
+        await patch({
+          voxelArtworkId: document.getElementById("sk-art").value,
+          voxelFace: document.getElementById("sk-face").value,
+          voxelT: t === "" ? null : Number(t),
+        });
+      };
+      detail.querySelectorAll("input[data-feat]").forEach((box) => {
+        box.onchange = async () => {
+          const feats = Array.from(detail.querySelectorAll("input[data-feat]:checked")).map((x) => x.dataset.feat);
+          await patch({ features: feats });
+        };
+      });
+      document.getElementById("chat-send").onclick = async () => {
+        const r = await fetch("/api/lemma-build/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message: document.getElementById("chat-msg").value }),
+        });
+        document.getElementById("chat-out").textContent = JSON.stringify(await r.json(), null, 2);
+      };
+      const url = imageUrlFor(selected);
+      if (selected.voxelArtworkId) {
+        VoxelIngest.mount(document.getElementById("sk-ingest"), {
+          artworkId: selected.voxelArtworkId,
+          face: selected.voxelFace || "north",
+          t: selected.voxelT,
+          grid: 16,
+          imageUrl: url || undefined,
+        });
+      }
+      fetch("/api/servers").then((r) => r.json()).then((servers) => {
+        const sel = document.getElementById("srv-box");
+        if (!sel) return;
+        servers.forEach((s) => {
+          const o = document.createElement("option");
+          o.value = s.id;
+          o.textContent = s.name + " · " + s.status + " · v" + s.scriptVersion;
+          sel.appendChild(o);
+        });
+      }).catch(() => {});
+    }
+
+    async function patch(body) {
+      const r = await fetch("/api/lemma-implementation/entries/" + selected.id, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      selected = await r.json();
+      await loadSummary();
+      openRow(selected.id);
+    }
+
+    document.getElementById("q").addEventListener("change", loadList);
+    document.getElementById("kind").addEventListener("change", loadList);
+    document.getElementById("impl").addEventListener("change", loadList);
+    document.getElementById("sync").onclick = async () => {
+      const r = await fetch("/api/lemma-implementation/sync", { method: "POST" }).then((x) => x.json());
+      document.getElementById("sync-msg").textContent = "synced " + r.synced;
+      await loadSummary();
+      loadList();
+    };
+
+    Promise.all([
+      fetch("/api/lemma-implementation/features").then((r) => r.json()),
+      loadSummary(),
+    ]).then((pair) => {
+      features = pair[0];
+      loadList();
+    });
+  </script>
+  <script src="/shared/cave-shell.js"></script>
+</body>
+</html>

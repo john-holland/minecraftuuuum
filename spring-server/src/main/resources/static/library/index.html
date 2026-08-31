@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Servers — Minecraftuuuum! UCC</title>
+  <link rel="stylesheet" href="/ucc.css" />
+</head>
+<body>
+  <nav class="nav">
+    <a href="/library">Servers</a>
+    <a href="/lemma-library">Lemmas</a>
+    <a href="/lemma-implementation">Implement</a>
+    <a href="/block-recipes">Blocks / recipes</a>
+    <a href="/video-generation">Video generation</a>
+    <a href="/pixellight">PixelLight</a>
+  </nav>
+  <main class="servers-main">
+    <h1>Server configurations</h1>
+    <p>Continuuuum derivative. Cursor is an optional fee platform. Mojang/Microsoft Marketplace retainer is 70/30 on tenant <code>minecraftuuuum</code> plus Continuuuum’s 10% HWM.</p>
+    <p id="settings" class="wa-meta"></p>
+    <p class="wa-meta"><a id="lobbies-link" href="http://127.0.0.1:5051/game-lobbies">Game lobbies / sessions</a> (Continuuuum — hosting, private servers, Proton Unity / Unreal flip).</p>
+    <div class="srv-split">
+      <section>
+        <h2>Configurations</h2>
+        <p class="wa-meta">Edit metadata and script separately. Saving the script always creates a new version.</p>
+        <ul id="cfg-list" class="br-list"></ul>
+        <h3>New configuration</h3>
+        <form id="cfg-new">
+          <label>Name <input name="name" required placeholder="demo-2" /></label>
+          <label>Working dir <input name="workingDir" placeholder="D:/Development/minecraftuuuum/neoforge-mod" /></label>
+          <label>Start command <input name="startCommand" placeholder="gradlew.bat runClient" /></label>
+          <label>Port <input name="port" type="number" /></label>
+          <label>Initial script
+            <textarea name="script" rows="4">{P:say|text=Minecraftuuuum!}
+{P:place|registry-id=minecraft:oak_planks}
+{P:spawn|registry-id=minecraft:creeper}</textarea>
+          </label>
+          <button type="submit">Create</button>
+        </form>
+        <section id="editor" class="srv-editor" hidden>
+          <h3>Edit <span id="ed-title"></span></h3>
+          <form id="cfg-meta">
+            <input type="hidden" name="id" id="ed-id" />
+            <label>Name <input name="name" id="ed-name" required /></label>
+            <label>Working dir <input name="workingDir" id="ed-dir" /></label>
+            <label>Start command <input name="startCommand" id="ed-cmd" /></label>
+            <label>Port <input name="port" id="ed-port" type="number" /></label>
+            <button type="submit">Save configuration</button>
+          </form>
+          <label>Script (save creates v<span id="ed-next">?</span>)
+            <textarea id="ed-script" rows="8"></textarea>
+          </label>
+          <p>
+            <button type="button" id="ed-expand">Expand</button>
+            <button type="button" id="ed-save-script">Save script version</button>
+          </p>
+          <pre id="ed-out"></pre>
+          <label>Version history
+            <select id="ed-versions"></select>
+          </label>
+        </section>
+      </section>
+      <section>
+        <h2>Active servers</h2>
+        <p class="wa-meta">Register and launch from a configuration + pinned script version. Restart keeps the same instance.</p>
+        <ul id="srv-list" class="srv-instances"></ul>
+      </section>
+    </div>
+  </main>
+  <script>
+    function json(r) {
+      return r.json().then((body) => {
+        if (!r.ok) throw new Error((body && body.message) || r.status);
+        return body;
+      });
+    }
+
+    fetch("/api/settings").then((r) => r.json()).then((s) => {
+      const ret = s.retainer && typeof s.retainer === "object" ? s.retainer : {};
+      document.getElementById("settings").textContent =
+        "LM Studio " + s.lmStudioModel + " @ " + s.lmStudioBase +
+        " · tenant=" + s.tenantId +
+        " · creator " + Math.round((ret.creatorPct || 0.7) * 100) + "%" +
+        " / Microsoft " + Math.round((ret.platformPct || 0.3) * 100) + "%" +
+        " / HWM " + Math.round((ret.continuuuumHwmPct || 0.1) * 100) + "%" +
+        " · cursor optional=" + s.optionalFeePlatforms.cursor;
+      const link = document.getElementById("lobbies-link");
+      if (link && s.continuuuumBase) {
+        link.href = String(s.continuuuumBase).replace(/\/$/, "") + "/game-lobbies";
+      }
+    });
+
+    async function loadConfigs() {
+      const rows = await fetch("/api/server-configs").then((r) => r.json());
+      const host = document.getElementById("cfg-list");
+      host.innerHTML = "";
+      rows.forEach((cfg) => {
+        const li = document.createElement("li");
+        const versions = document.createElement("select");
+        versions.className = "ver-pick";
+        versions.dataset.id = cfg.id;
+        versions.innerHTML = "<option value=\"\">head v" + cfg.headVersion + "</option>";
+        fetch("/api/server-configs/" + cfg.id).then((r) => r.json()).then((full) => {
+          versions.innerHTML = (full.versions || []).map((v) =>
+            "<option value=\"" + v.version + "\"" + (v.version === cfg.headVersion ? " selected" : "") +
+            ">v" + v.version + "</option>").join("");
+        });
+        const meta = document.createElement("button");
+        meta.type = "button";
+        meta.className = "pick";
+        meta.innerHTML = "<span>" + cfg.name + "</span><span class=\"fam\">v" + cfg.headVersion +
+          (cfg.port ? " · :" + cfg.port : "") + "</span>";
+        const edit = document.createElement("button");
+        edit.type = "button";
+        edit.textContent = "Edit";
+        edit.onclick = () => openEditor(cfg.id);
+        const start = document.createElement("button");
+        start.type = "button";
+        start.textContent = "Start";
+        start.onclick = async () => {
+          const ver = Number(versions.value);
+          const body = { configId: cfg.id };
+          if (ver) body.scriptVersion = ver;
+          await fetch("/api/servers?launch=true", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+          }).then(json);
+          loadServers();
+        };
+        const row = document.createElement("div");
+        row.className = "cfg-row";
+        row.append(meta, versions, edit, start);
+        meta.onclick = () => openEditor(cfg.id);
+        li.appendChild(row);
+        host.appendChild(li);
+      });
+    }
+
+    async function openEditor(id) {
+      const full = await fetch("/api/server-configs/" + id).then((r) => r.json());
+      document.getElementById("editor").hidden = false;
+      document.getElementById("ed-title").textContent = full.name;
+      document.getElementById("ed-id").value = full.id;
+      document.getElementById("ed-name").value = full.name;
+      document.getElementById("ed-dir").value = full.workingDir || "";
+      document.getElementById("ed-cmd").value = full.startCommand || "";
+      document.getElementById("ed-port").value = full.port == null ? "" : full.port;
+      document.getElementById("ed-script").value = full.headScript || "";
+      document.getElementById("ed-next").textContent = String((full.headVersion || 0) + 1);
+      const sel = document.getElementById("ed-versions");
+      sel.innerHTML = (full.versions || []).map((v) =>
+        "<option value=\"" + v.id + "\" data-text=\"" + encodeURIComponent(v.scriptText) + "\">v" +
+        v.version + " · " + v.createdAt + "</option>").join("");
+      sel.onchange = () => {
+        const opt = sel.selectedOptions[0];
+        if (opt) document.getElementById("ed-script").value = decodeURIComponent(opt.dataset.text || "");
+      };
+    }
+
+    document.getElementById("cfg-new").onsubmit = async (ev) => {
+      ev.preventDefault();
+      const fd = new FormData(ev.target);
+      const body = {
+        name: fd.get("name"),
+        workingDir: fd.get("workingDir"),
+        startCommand: fd.get("startCommand"),
+        script: fd.get("script"),
+      };
+      const port = fd.get("port");
+      if (port) body.port = Number(port);
+      await fetch("/api/server-configs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      }).then(json);
+      ev.target.reset();
+      loadConfigs();
+    };
+
+    document.getElementById("cfg-meta").onsubmit = async (ev) => {
+      ev.preventDefault();
+      const id = document.getElementById("ed-id").value;
+      const body = {
+        name: document.getElementById("ed-name").value,
+        workingDir: document.getElementById("ed-dir").value,
+        startCommand: document.getElementById("ed-cmd").value,
+      };
+      const port = document.getElementById("ed-port").value;
+      body.port = port ? Number(port) : null;
+      await fetch("/api/server-configs/" + id, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      }).then(json);
+      loadConfigs();
+      openEditor(id);
+    };
+
+    document.getElementById("ed-save-script").onclick = async () => {
+      const id = document.getElementById("ed-id").value;
+      await fetch("/api/server-configs/" + id + "/script", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ script: document.getElementById("ed-script").value }),
+      }).then(json);
+      loadConfigs();
+      openEditor(id);
+    };
+
+    document.getElementById("ed-expand").onclick = async () => {
+      const r = await fetch("/api/thesaurus/expand", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ script: document.getElementById("ed-script").value }),
+      });
+      document.getElementById("ed-out").textContent = JSON.stringify(await r.json(), null, 2);
+    };
+
+    async function loadServers() {
+      const rows = await fetch("/api/servers").then((r) => r.json());
+      const host = document.getElementById("srv-list");
+      host.innerHTML = "";
+      if (!rows.length) {
+        host.innerHTML = "<li class=\"wa-meta\">No servers registered.</li>";
+        return;
+      }
+      rows.forEach((s) => {
+        const li = document.createElement("li");
+        li.className = "srv-card";
+        const ver = document.createElement("select");
+        ver.innerHTML = "<option value=\"\">pinned v" + s.scriptVersion + "</option>";
+        fetch("/api/server-configs/" + s.configId).then((r) => r.json()).then((full) => {
+          ver.innerHTML = (full.versions || []).map((v) =>
+            "<option value=\"" + v.version + "\"" + (v.version === s.scriptVersion ? " selected" : "") +
+            ">v" + v.version + "</option>").join("");
+        });
+        const actions = document.createElement("div");
+        actions.className = "srv-actions";
+        const start = document.createElement("button");
+        start.type = "button";
+        start.textContent = "Start";
+        start.onclick = () => act(s.id, "start", ver);
+        const restart = document.createElement("button");
+        restart.type = "button";
+        restart.textContent = "Restart";
+        restart.onclick = () => act(s.id, "restart", ver);
+        const stop = document.createElement("button");
+        stop.type = "button";
+        stop.textContent = "Stop";
+        stop.onclick = () => act(s.id, "stop");
+        actions.append(ver, start, restart, stop);
+        li.innerHTML = "<strong>" + s.name + "</strong> · " + s.configName + " · v" + s.scriptVersion +
+          " · <span class=\"srv-status\">" + s.status + "</span>" +
+          (s.pid ? " · pid " + s.pid : "") +
+          (s.port ? " · :" + s.port : "") +
+          (s.error ? " · " + s.error : "");
+        li.appendChild(actions);
+        host.appendChild(li);
+      });
+    }
+
+    async function act(id, verb, verSel) {
+      const body = {};
+      if (verSel && verSel.value) body.scriptVersion = Number(verSel.value);
+      await fetch("/api/servers/" + id + "/" + verb, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      }).then(json);
+      loadServers();
+    }
+
+    loadConfigs();
+    loadServers();
+    setInterval(loadServers, 4000);
+  </script>
+  <script src="/shared/cave-shell.js"></script>
+</body>
+</html>

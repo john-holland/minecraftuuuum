@@ -1,0 +1,9 @@
+{
+  "pack": "minecraftuuuum:vanilla-actors",
+  "note": "Full official EntityType list is seeded by ActorCatalog at UCC runtime. This file documents in-game pack layout.",
+  "poseEngines": {
+    "humanoid": "mediapipe_holistic@v1",
+    "nonHuman": "mocapanything@v2",
+    "fallback": "root-motion"
+  }
+}

@@ -1,0 +1,30 @@
+server:
+  port: 5050
+
+spring:
+  application:
+    name: minecraftuuuum
+  servlet:
+    multipart:
+      max-file-size: 200MB
+      max-request-size: 200MB
+  datasource:
+    url: jdbc:sqlite:${CRAFTPRESSOR_DB:minecraftuuuum.db}
+    driver-class-name: org.sqlite.JDBC
+  flyway:
+    enabled: false
+
+minecraftuuuum:
+  db: ${CRAFTPRESSOR_DB:minecraftuuuum.db}
+  tenant-id: ${MINECRAFTUUUUM_TENANT:minecraftuuuum}
+  fallback-tenant: default
+  continuuuum-base: ${CONTINUUUUM_LIBRARY_URL:http://127.0.0.1:5051}
+  usc-base: ${USC_API_BASE:}
+  cave-base: ${CAVE_BASE_URL:}
+  lm-studio-base: ${LM_STUDIO_BASE:http://localhost:1234/v1}
+  lm-studio-model: ${LM_STUDIO_MODEL:codestral}
+  mocap-root: ${MOCAPANYTHING_ROOT:D:/Development/MocapAnything}
+  modly-root: ${MODLY_ROOT:D:/Development/modly}
+  webgl-preview: ${MINECRAFTUUUUM_WEBGL:http://127.0.0.1:5050/continuuuum_editor/index.html}
+  optional-fee-platforms:
+    cursor: ${CURSOR_OPTIONAL_FEE:false}

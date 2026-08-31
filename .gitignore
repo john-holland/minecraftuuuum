@@ -1,0 +1,9 @@
+.gradle/
+build/
+**/build/
+*.db
+*.db-journal
+.idea/
+*.iml
+run/
+src/generated/

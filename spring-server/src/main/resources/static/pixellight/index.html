@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>PixelLight — Minecraftuuuum!</title>
+  <link rel="stylesheet" href="/ucc.css" />
+</head>
+<body>
+  <nav class="nav">
+    <a href="/library">Servers</a>
+    <a href="/lemma-library">Lemmas</a>
+    <a href="/lemma-implementation">Implement</a>
+    <a href="/block-recipes">Blocks / recipes</a>
+    <a href="/video-generation">Video generation</a>
+    <a href="/pixellight">PixelLight</a>
+  </nav>
+  <main>
+    <h1>Web PixelLight converter</h1>
+    <p>Upload a still. Runs three folds, stores addresses, converts for Minecraft faces.</p>
+    <form id="form">
+      <input type="file" name="file" accept="image/*" required />
+      <input name="artworkId" placeholder="artwork id" value="demo" />
+      <select name="face">
+        <option>north</option><option>south</option><option>east</option>
+        <option>west</option><option>up</option><option>down</option>
+      </select>
+      <button>Ingest</button>
+    </form>
+    <div id="comp"></div>
+    <pre id="out"></pre>
+  </main>
+  <script src="/components/voxel-ingest.js"></script>
+  <script>
+    document.getElementById("form").onsubmit = async (ev) => {
+      ev.preventDefault();
+      const fd = new FormData(ev.target);
+      const ingest = await fetch("/api/voxel/ingest", { method: "POST", body: fd });
+      const folds = await fetch("/api/voxel/folds", { method: "POST", body: fd });
+      const art = fd.get("artworkId");
+      const conv = await fetch("/api/voxel/pixellight?artworkId=" + encodeURIComponent(art));
+      document.getElementById("out").textContent = JSON.stringify({
+        ingest: await ingest.json(),
+        folds: await folds.json(),
+        pixellight: await conv.json(),
+      }, null, 2);
+      const file = ev.target.file.files[0];
+      if (file) {
+        const url = URL.createObjectURL(file);
+        VoxelIngest.mount(document.getElementById("comp"), {
+          artworkId: art, face: fd.get("face"), imageUrl: url,
+        });
+      }
+    };
+  </script>
+  <script src="/shared/cave-shell.js"></script>
+</body>
+</html>

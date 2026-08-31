@@ -1,0 +1,11 @@
+{
+  "pack": "minecraftuuuum:example-create-wrap",
+  "note": "Does not vendor Create. Binds vocabulary to create:* if that mod is loaded.",
+  "entries": [
+    {
+      "id": "urn:minecraft:minecraftuuuum:mod:create:v1:/en/noun/mechanical-piston",
+      "term": "mechanical-piston",
+      "properties": { "kind": "block", "registry-id": "create:mechanical_piston" }
+    }
+  ]
+}

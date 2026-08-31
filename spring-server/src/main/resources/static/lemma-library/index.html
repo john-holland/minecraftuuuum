@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Lemma library — Minecraftuuuum!</title>
+  <link rel="stylesheet" href="/ucc.css" />
+</head>
+<body>
+  <nav class="nav">
+    <a href="/library">Servers</a>
+    <a href="/lemma-library">Lemmas</a>
+    <a href="/lemma-implementation">Implement</a>
+    <a href="/block-recipes">Blocks / recipes</a>
+    <a href="/video-generation">Video generation</a>
+    <a href="/pixellight">PixelLight</a>
+  </nav>
+  <main>
+    <h1>Lemma library</h1>
+    <p>Builtins + vanilla actor pack + example third-party wrap.</p>
+    <ul id="packs"></ul>
+    <input id="q" placeholder="lookup phrase (e.g. open chest)" />
+    <pre id="hit"></pre>
+    <ul id="list"></ul>
+  </main>
+  <script>
+    fetch("/api/wrapper-packs").then((r) => r.json()).then((packs) => {
+      document.getElementById("packs").innerHTML = packs.map((p) => "<li>" + p.label + "</li>").join("");
+    });
+    fetch("/api/thesaurus/entries").then((r) => r.json()).then((rows) => {
+      document.getElementById("list").innerHTML = rows.slice(0, 80).map((e) =>
+        "<li><code>" + e.term + "</code> " + (e.properties && e.properties["registry-id"] || "") + "</li>").join("");
+    });
+    document.getElementById("q").addEventListener("change", async (ev) => {
+      const r = await fetch("/api/thesaurus/lookup?phrase=" + encodeURIComponent(ev.target.value));
+      document.getElementById("hit").textContent = JSON.stringify(await r.json(), null, 2);
+    });
+  </script>
+  <script src="/shared/cave-shell.js"></script>
+</body>
+</html>

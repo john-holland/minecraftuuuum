@@ -1,0 +1,14 @@
+{
+  "pack": "minecraftuuuum:vanilla",
+  "note": "Actor lemmas are also seeded at runtime from ActorCatalog. This datapack is the in-game copy.",
+  "entries": [
+    {
+      "term": "player",
+      "properties": { "kind": "entity", "registry-id": "minecraft:player", "pose-engine": "mediapipe_holistic@v1" }
+    },
+    {
+      "term": "creeper",
+      "properties": { "kind": "entity", "registry-id": "minecraft:creeper", "pose-engine": "mocapanything@v2" }
+    }
+  ]
+}

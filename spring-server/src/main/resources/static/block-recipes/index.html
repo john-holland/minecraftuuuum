@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Block types and recipes — Minecraftuuuum!</title>
+  <link rel="stylesheet" href="/ucc.css" />
+</head>
+<body>
+  <nav class="nav">
+    <a href="/library">Servers</a>
+    <a href="/lemma-library">Lemmas</a>
+    <a href="/lemma-implementation">Implement</a>
+    <a href="/block-recipes">Blocks / recipes</a>
+    <a href="/video-generation">Video generation</a>
+    <a href="/pixellight">PixelLight</a>
+  </nav>
+  <main class="block-recipes">
+    <h1>Block types and recipes</h1>
+    <p>Search or filter a block type, then select it to see recipes that craft it and recipes that use it.</p>
+    <div class="br-toolbar">
+      <input id="q" placeholder="Search oak, piston, glass…" />
+      <div id="families" class="chips"></div>
+    </div>
+    <div class="br-split">
+      <ul id="list" class="br-list"></ul>
+      <section id="detail" class="br-detail">
+        <p class="wa-meta">Select a block type.</p>
+      </section>
+    </div>
+  </main>
+  <script>
+    let family = "";
+    let selected = "";
+
+    function chips(families) {
+      const host = document.getElementById("families");
+      const all = ["all"].concat(families);
+      host.innerHTML = all.map((f) =>
+        `<button type="button" class="chip${f === (family || "all") ? " on" : ""}" data-f="${f}">${f}</button>`
+      ).join("");
+      host.querySelectorAll(".chip").forEach((b) => {
+        b.onclick = () => {
+          family = b.dataset.f === "all" ? "" : b.dataset.f;
+          loadList();
+        };
+      });
+    }
+
+    function recipeCard(r) {
+      const ings = (r.ingredients || []).map((i) => `<code>${i}</code>`).join(" + ");
+      return `<li class="recipe">
+        <div class="recipe-type">${r.type} ×${r.count}</div>
+        <div>${ings || "(no ingredients)"} → <strong>${r.result}</strong></div>
+        <div class="wa-meta">${r.id}</div>
+      </li>`;
+    }
+
+    async function loadList() {
+      const q = document.getElementById("q").value;
+      const r = await fetch("/api/blocks?q=" + encodeURIComponent(q) + "&family=" + encodeURIComponent(family));
+      const data = await r.json();
+      chips(data.families || []);
+      document.getElementById("list").innerHTML = (data.blocks || []).map((b) =>
+        `<li><button type="button" class="pick${b.registryId === selected ? " on" : ""}" data-id="${b.registryId}">
+          <code>${b.registryId}</code><span class="fam">${b.family}</span>
+        </button></li>`
+      ).join("");
+      document.querySelectorAll(".pick").forEach((btn) => {
+        btn.onclick = () => select(btn.dataset.id);
+      });
+    }
+
+    async function select(id) {
+      selected = id;
+      const slash = id.replace(":", "/");
+      const r = await fetch("/api/blocks/" + slash);
+      const b = await r.json();
+      document.getElementById("detail").innerHTML = `
+        <h2>${b.registryId}</h2>
+        <p>Family: ${b.family}</p>
+        <p><code>${b.lemmaPlace}</code></p>
+        <p><code>${b.lemmaRecipe}</code></p>
+        <h3>Crafts this</h3>
+        <ul class="recipes">${(b.crafts || []).map(recipeCard).join("") || "<li>None in catalog</li>"}</ul>
+        <h3>Uses this</h3>
+        <ul class="recipes">${(b.uses || []).map(recipeCard).join("") || "<li>None in catalog</li>"}</ul>`;
+      loadList();
+    }
+
+    document.getElementById("q").addEventListener("input", () => loadList());
+    loadList();
+  </script>
+  <script src="/shared/cave-shell.js"></script>
+</body>
+</html>

@@ -1,0 +1,9 @@
+Minecraftuuuum!
+
+This project is an unofficial analog and is not affiliated with, endorsed by, or sponsored by Mojang AB, Microsoft Corporation, or Notch Development AB.
+
+MINECRAFT is a trademark of Mojang AB. Microsoft, Mojang, and related marks are trademarks of their respective owners. All rights reserved.
+
+No unofficial Minecraft assets (textures, models, sounds, or other Mojang/Microsoft copyrighted game content) are vendored in this repository.
+
+Modly (https://github.com/lightningpixel/modly), MediaPipe, and MoCapAnything weights are invoked locally when present and are not redistributed here.

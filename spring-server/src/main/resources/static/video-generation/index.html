@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Video generation — Minecraftuuuum! UCC</title>
+  <link rel="stylesheet" href="/ucc.css" />
+</head>
+<body>
+  <nav class="nav">
+    <a href="/library">Servers</a>
+    <a href="/lemma-library">Lemmas</a>
+    <a href="/lemma-implementation">Implement</a>
+    <a href="/block-recipes">Blocks / recipes</a>
+    <a href="/video-generation">Video generation</a>
+    <a href="/pixellight">PixelLight</a>
+  </nav>
+  <main>
+    <h1>/video-generation</h1>
+    <p>Webcam or clip ingest (per-frame voxel). Image to model via Modly (not vendored). Granularity is spatial — not webcam timeline ticks.</p>
+
+    <section>
+      <h2>Webcam / clip</h2>
+      <video id="live" autoplay playsinline muted width="240"></video>
+      <p>
+        <button type="button" id="cam">Start webcam</button>
+        <button type="button" id="stop">Stop</button>
+      </p>
+      <form id="form">
+        <label>Kind
+          <select name="kind">
+            <option value="ambulatory">Ambulatory</option>
+            <option value="vehicle">Vehicle</option>
+            <option value="dance">Dance</option>
+            <option value="misc">Misc</option>
+          </select>
+        </label>
+        <label>Actor <select id="actor" name="actorId"></select></label>
+        <label>Detector <select id="det" name="detectorProfile"></select></label>
+        <label>Video <input type="file" id="file" name="file" accept="video/*,image/*" required /></label>
+        <label>Extract fps <input type="number" id="extractFps" name="extractFps" value="16" min="1" max="60" step="1" /></label>
+        <input type="hidden" id="durationSec" name="durationSec" />
+        <p id="file-meta" class="wa-meta">No file selected — pick a clip to see name, size, and duration.</p>
+        <video id="file-probe" muted playsinline style="display:none"></video>
+        <button type="submit">Enqueue (per-frame voxel ingest)</button>
+      </form>
+      <p id="status"></p>
+      <div id="jobs"></div>
+    </section>
+
+    <section>
+      <h2>Image to model</h2>
+      <p class="wa-meta">Original image and optional mask persist on USC <code>artwork_media</code>. Modly writes a cached GLB/OBJ as <code>generated_mesh</code>.</p>
+      <form id="img-form">
+        <label>artworkId <input id="artworkId" name="artworkId" placeholder="art_…" /></label>
+        <label>Image <input type="file" id="src-image" name="image" accept="image/*" /></label>
+        <label>Mask (optional) <input type="file" id="src-mask" name="mask" accept="image/*" /></label>
+        <p><img id="img-prev" class="img-preview" alt="" hidden /><img id="mask-prev" class="img-preview" alt="" hidden /></p>
+        <button type="submit">Store image / mask</button>
+      </form>
+      <p id="img-status" class="wa-meta"></p>
+
+      <h3>Granularity</h3>
+      <p class="wa-meta">Minecraft preset: 16 texels/m, 1 block = 1 m, 64×64 skin, Steve-like bone cap, snap to grid. Any edit flips to custom.</p>
+      <p><button type="button" id="gran-mc">Minecraft</button> <span id="gran-preset" class="wa-meta">preset=minecraft</span></p>
+      <div class="gran-grid">
+        <label>pixelGrid <input id="g-pixelGrid" type="number" min="8" max="64" value="16" /></label>
+        <label>blockMeters <input id="g-blockMeters" type="number" step="0.01" value="1" /></label>
+        <label>texelsPerMeter <input id="g-texelsPerMeter" type="number" value="16" /></label>
+        <label>voxelCell <input id="g-voxelCell" type="number" step="0.001" value="0.0625" /></label>
+        <label>skinLayout
+          <select id="g-skinLayout">
+            <option value="64x64">64×64</option>
+            <option value="64x32">64×32</option>
+            <option value="custom">custom</option>
+          </select>
+        </label>
+        <label>maxBones <input id="g-maxBones" type="number" min="1" value="33" /></label>
+        <label>snapToGrid <input id="g-snapToGrid" type="checkbox" checked /></label>
+      </div>
+
+      <h3>Features</h3>
+      <div class="vg-split">
+        <div>
+          <label>Available backends (listbox)
+            <select id="feat-box" multiple size="6"></select>
+          </label>
+          <div id="feat-checks" class="li-checks"></div>
+        </div>
+        <div id="feat-props"></div>
+      </div>
+      <p>
+        <button type="button" id="modly-run">Generate mesh (Modly)</button>
+        <span id="modly-status" class="wa-meta"></span>
+      </p>
+    </section>
+
+    <section>
+      <h2>Unity WebGL preview</h2>
+      <p id="webgl-hint" class="wa-meta"></p>
+      <iframe id="webgl" class="webgl-frame" title="Drawer 2 WebGL preview"></iframe>
+    </section>
+  </main>
+  <script src="/components/voxel-ingest.js"></script>
+  <script>
+    const MINECRAFT_GRAN = {
+      preset: "minecraft", pixelGrid: 16, blockMeters: 1, texelsPerMeter: 16,
+      voxelCell: 0.0625, skinLayout: "64x64", maxBones: 33, snapToGrid: true
+    };
+    let features = [];
+    let webglPreview = "/continuuuum_editor/index.html";
+    let webglBuild = false;
+
+    function granFromForm() {
+      const g = {
+        pixelGrid: Number(document.getElementById("g-pixelGrid").value),
+        blockMeters: Number(document.getElementById("g-blockMeters").value),
+        texelsPerMeter: Number(document.getElementById("g-texelsPerMeter").value),
+        voxelCell: Number(document.getElementById("g-voxelCell").value),
+        skinLayout: document.getElementById("g-skinLayout").value,
+        maxBones: Number(document.getElementById("g-maxBones").value),
+        snapToGrid: document.getElementById("g-snapToGrid").checked
+      };
+      const same =
+        g.pixelGrid === MINECRAFT_GRAN.pixelGrid &&
+        g.blockMeters === MINECRAFT_GRAN.blockMeters &&
+        g.texelsPerMeter === MINECRAFT_GRAN.texelsPerMeter &&
+        g.voxelCell === MINECRAFT_GRAN.voxelCell &&
+        g.skinLayout === MINECRAFT_GRAN.skinLayout &&
+        g.maxBones === MINECRAFT_GRAN.maxBones &&
+        g.snapToGrid === MINECRAFT_GRAN.snapToGrid;
+      g.preset = same ? "minecraft" : "custom";
+      document.getElementById("gran-preset").textContent = "preset=" + g.preset;
+      return g;
+    }
+
+    function applyGran(g) {
+      document.getElementById("g-pixelGrid").value = g.pixelGrid;
+      document.getElementById("g-blockMeters").value = g.blockMeters;
+      document.getElementById("g-texelsPerMeter").value = g.texelsPerMeter;
+      document.getElementById("g-voxelCell").value = g.voxelCell;
+      document.getElementById("g-skinLayout").value = g.skinLayout;
+      document.getElementById("g-maxBones").value = g.maxBones;
+      document.getElementById("g-snapToGrid").checked = !!g.snapToGrid;
+      granFromForm();
+    }
+
+    document.getElementById("gran-mc").onclick = () => applyGran(MINECRAFT_GRAN);
+    ["g-pixelGrid","g-blockMeters","g-texelsPerMeter","g-voxelCell","g-skinLayout","g-maxBones","g-snapToGrid"]
+      .forEach((id) => document.getElementById(id).addEventListener("input", granFromForm));
+    document.getElementById("g-snapToGrid").addEventListener("change", granFromForm);
+
+    function checkedFeats() {
+      return Array.from(document.querySelectorAll("#feat-checks input[data-feat]:checked")).map((x) => x.dataset.feat);
+    }
+
+    function refreshPreview() {
+      const g = granFromForm();
+      const q = new URLSearchParams({
+        artworkId: document.getElementById("artworkId").value || "",
+        granularity: JSON.stringify(g),
+        modelSpec: checkedFeats().join(",")
+      });
+      document.getElementById("webgl").src = webglPreview + (webglPreview.indexOf("?") >= 0 ? "&" : "?") + q.toString();
+      document.getElementById("webgl-hint").textContent = webglBuild
+        ? "Drawer 2 WebGL build detected."
+        : "Placeholder — no Unity WebGL Build/ folder shipped. Set MINECRAFTUUUUM_WEBGL or drop a build under static/continuuuum_editor/Build.";
+    }
+
+    function propHtml(f) {
+      if (f.id.indexOf("modly") === 0) {
+        return '<label>prompt <input id="modly-prompt" placeholder="low-poly character" /></label>' +
+          '<label>steps <input id="modly-steps" type="number" value="20" min="1" /></label>' +
+          '<label>mesh format <select id="modly-fmt"><option value="glb">glb</option><option value="obj">obj</option></select></label>';
+      }
+      if (f.id.indexOf("mediapipe") === 0 || f.id.indexOf("mocap") === 0) {
+        return '<label>detector profile <select class="det-profile" data-for="' + f.id + '"><option value="">(from actor)</option></select></label>';
+      }
+      if (f.id === "pixellight") {
+        return '<p class="wa-meta">Face bind uses granularity.pixelGrid (Minecraft 16 unless custom).</p>' +
+          '<label>face <select id="pl-face"><option>north</option><option>south</option><option>east</option><option>west</option><option>up</option><option>down</option></select></label>';
+      }
+      if (f.id === "voxel-ragdoll") {
+        return '<p class="wa-meta">VoxelRagdollActor: 1 block = 1 m, 16 texels/m. Snap uses granularity.snapToGrid.</p>';
+      }
+      return "";
+    }
+
+    function renderFeatures() {
+      const box = document.getElementById("feat-box");
+      box.innerHTML = features.map((f) =>
+        "<option value=\"" + f.id + "\">" + f.label + " · " + f.kind +
+        (f.available ? " · available" : " · missing") + "</option>").join("");
+      document.getElementById("feat-checks").innerHTML = features.map((f) =>
+        '<label class="li-check"><input type="checkbox" data-feat="' + f.id + '" /> ' + f.label +
+        (f.available ? "" : " <span class=\"fam\">offline</span>") + "</label>").join("");
+      document.getElementById("feat-props").innerHTML = features.map((f) =>
+        '<div class="vg-props" hidden data-prop="' + f.id + '"><h4>' + f.label + '</h4>' +
+        '<p class="wa-meta">' + (f.hint || "") + "</p>" + propHtml(f) + "</div>").join("");
+      document.querySelectorAll("#feat-checks input[data-feat]").forEach((cb) => {
+        cb.onchange = () => {
+          const panel = document.querySelector('[data-prop="' + cb.dataset.feat + '"]');
+          if (panel) panel.hidden = !cb.checked;
+          refreshPreview();
+        };
+      });
+    }
+
+    fetch("/api/video-generation/features").then((r) => r.json()).then((m) => {
+      features = m.features || [];
+      webglPreview = m.webglPreview || webglPreview;
+      webglBuild = !!m.webglBuild;
+      if (m.granularityMinecraft) applyGran(m.granularityMinecraft);
+      renderFeatures();
+      refreshPreview();
+      fetch("/api/video-animation/models").then((r) => r.json()).then((mod) => {
+        document.querySelectorAll(".det-profile").forEach((sel) => {
+          sel.innerHTML = "<option value=\"\">(from actor)</option>" +
+            (mod.detectors || []).map((d) => "<option value=\"" + d.id + "\">" + d.label + "</option>").join("");
+        });
+      }).catch(() => {});
+    });
+
+    function previewFile(input, img) {
+      const f = input.files[0];
+      if (!f) { img.hidden = true; return; }
+      img.src = URL.createObjectURL(f);
+      img.hidden = false;
+    }
+    document.getElementById("src-image").addEventListener("change", () =>
+      previewFile(document.getElementById("src-image"), document.getElementById("img-prev")));
+    document.getElementById("src-mask").addEventListener("change", () =>
+      previewFile(document.getElementById("src-mask"), document.getElementById("mask-prev")));
+    document.getElementById("artworkId").addEventListener("input", refreshPreview);
+
+    document.getElementById("img-form").onsubmit = async (ev) => {
+      ev.preventDefault();
+      const fd = new FormData();
+      const id = document.getElementById("artworkId").value;
+      if (id) fd.set("artworkId", id);
+      const img = document.getElementById("src-image").files[0];
+      const mask = document.getElementById("src-mask").files[0];
+      if (img) fd.set("image", img);
+      if (mask) fd.set("mask", mask);
+      fd.set("granularity", JSON.stringify(granFromForm()));
+      document.getElementById("img-status").textContent = "storing…";
+      const r = await fetch("/api/video-generation/media", { method: "POST", body: fd });
+      const rec = await r.json();
+      if (rec.artworkId) document.getElementById("artworkId").value = rec.artworkId;
+      document.getElementById("img-status").textContent = JSON.stringify(rec.media || rec, null, 0);
+      refreshPreview();
+    };
+
+    document.getElementById("modly-run").onclick = async () => {
+      const artworkId = document.getElementById("artworkId").value;
+      if (!artworkId) {
+        document.getElementById("modly-status").textContent = "store an image first";
+        return;
+      }
+      const body = {
+        artworkId,
+        t: -1,
+        prompt: (document.getElementById("modly-prompt") || {}).value || "",
+        meshFormat: (document.getElementById("modly-fmt") || {}).value || "glb",
+        steps: Number((document.getElementById("modly-steps") || {}).value) || 20,
+        granularity: granFromForm()
+      };
+      document.getElementById("modly-status").textContent = "invoking Modly…";
+      const r = await fetch("/api/video-generation/modly", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body)
+      });
+      const rec = await r.json();
+      document.getElementById("modly-status").textContent =
+        rec.ok ? ("cached " + rec.bytes + " bytes") : (rec.hint || rec.error || "unavailable");
+      refreshPreview();
+    };
+
+    fetch("/api/video-animation/actors").then((r) => r.json()).then((actors) => {
+      const sel = document.getElementById("actor");
+      sel.innerHTML = actors.map((a) =>
+        "<option value=\"" + a.registryId + "\">" + a.registryId + " (" + a.poseEngine + ")</option>").join("");
+    });
+    fetch("/api/video-animation/models").then((r) => r.json()).then((m) => {
+      document.getElementById("det").innerHTML = "<option value=\"\">(from actor)</option>" +
+        m.detectors.map((d) => "<option value=\"" + d.id + "\">" + d.label + "</option>").join("");
+    });
+    document.getElementById("cam").onclick = async () => {
+      const s = await navigator.mediaDevices.getUserMedia({ video: true });
+      document.getElementById("live").srcObject = s;
+    };
+    document.getElementById("stop").onclick = () => {
+      const v = document.getElementById("live");
+      if (v.srcObject) v.srcObject.getTracks().forEach((t) => t.stop());
+    };
+    function formatMeta(file, durationSec) {
+      if (!file) return "No file selected — pick a clip to see name, size, and duration.";
+      const mb = (file.size / (1024 * 1024)).toFixed(2);
+      const dur = durationSec > 0 ? durationSec.toFixed(2) + "s" : "duration pending…";
+      const fps = Number(document.getElementById("extractFps").value) || 16;
+      const expect = durationSec > 0 ? Math.round(durationSec * fps) : "?";
+      return file.name + " · " + mb + " MB · " + dur + " · extract " + fps + " fps · ~" + expect + " frames";
+    }
+
+    document.getElementById("file").addEventListener("change", () => {
+      const file = document.getElementById("file").files[0];
+      const probe = document.getElementById("file-probe");
+      document.getElementById("durationSec").value = "";
+      document.getElementById("file-meta").textContent = formatMeta(file, 0);
+      if (!file || file.type.startsWith("image/")) return;
+      const url = URL.createObjectURL(file);
+      probe.onloadedmetadata = () => {
+        document.getElementById("durationSec").value = String(probe.duration);
+        document.getElementById("file-meta").textContent = formatMeta(file, probe.duration);
+        URL.revokeObjectURL(url);
+      };
+      probe.src = url;
+    });
+    document.getElementById("extractFps").addEventListener("input", () => {
+      const file = document.getElementById("file").files[0];
+      const dur = Number(document.getElementById("durationSec").value) || 0;
+      document.getElementById("file-meta").textContent = formatMeta(file, dur);
+    });
+
+    const polling = new Set();
+    const ACTIVE_KEY = "minecraftuuuum.video-animation.activeId";
+
+    function statusLine(rec) {
+      const done = rec.ingestedCount || 0;
+      const total = rec.extractedCount || rec.expectedFrames || (rec.frames || []).length;
+      const err = rec.error ? " · " + rec.error : "";
+      return (rec.clipSummary || rec.id) + " · " + rec.status +
+        " · ingested " + done + (total ? " / " + total : "") + err;
+    }
+
+    function jobSection(id) {
+      let el = document.getElementById("job-" + id);
+      if (!el) {
+        el = document.createElement("section");
+        el.id = "job-" + id;
+        el.className = "va-job";
+        el.innerHTML = '<p class="job-status wa-meta"></p><div class="accordion-host"></div>';
+        document.getElementById("jobs").prepend(el);
+      }
+      return el;
+    }
+
+    function upsertRecording(rec) {
+      const el = jobSection(rec.id);
+      el.querySelector(".job-status").textContent = statusLine(rec);
+      const host = el.querySelector(".accordion-host");
+      (rec.frames || []).forEach((fr) => {
+        const fid = "frame-" + rec.id + "-" + fr.t;
+        let d = document.getElementById(fid);
+        const thumb = fr.thumbnail || ("/api/video-animation/" + rec.id + "/frames/" + fr.t);
+        const time = fr.timeSec != null ? Number(fr.timeSec).toFixed(3) + "s" : "";
+        const label = "t=" + fr.t + " · " + time + " · " + rec.poseEngine + " · voxel " + fr.voxelStatus;
+        if (!d) {
+          d = document.createElement("details");
+          d.id = fid;
+          d.className = "accordion";
+          d.innerHTML =
+            "<summary><img class=\"thumb\" alt=\"\" src=\"" + thumb + "\" /><span class=\"frame-label\"></span></summary>" +
+            "<div class=\"preview\"><img class=\"frame-preview\" alt=\"frame " + fr.t + "\" src=\"" + thumb + "\" /></div>" +
+            "<div class=\"mount\"></div>";
+          host.appendChild(d);
+          d.addEventListener("toggle", () => {
+            if (d.open && !d.dataset.mounted) {
+              VoxelIngest.mount(d.querySelector(".mount"), {
+                artworkId: rec.id, face: "north", t: fr.t, grid: granFromForm().pixelGrid || 16, imageUrl: thumb,
+              });
+              d.dataset.mounted = "1";
+            }
+          });
+        }
+        d.querySelector(".frame-label").textContent = label;
+      });
+      if (rec.id === sessionStorage.getItem(ACTIVE_KEY)) {
+        document.getElementById("status").textContent = statusLine(rec);
+      }
+    }
+
+    async function poll(id) {
+      if (polling.has(id)) return;
+      polling.add(id);
+      try {
+        while (true) {
+          const r = await fetch("/api/video-animation/" + id);
+          if (!r.ok) break;
+          const rec = await r.json();
+          upsertRecording(rec);
+          if (rec.status !== "extracting" && rec.status !== "ingesting" && rec.status !== "queued" && rec.status !== "uploading") {
+            break;
+          }
+          await new Promise((res) => setTimeout(res, 1000));
+        }
+      } finally {
+        polling.delete(id);
+      }
+    }
+
+    async function restoreJobs() {
+      const r = await fetch("/api/video-animation");
+      if (!r.ok) return;
+      const list = await r.json();
+      list.slice().reverse().forEach(upsertRecording);
+      const active = sessionStorage.getItem(ACTIVE_KEY);
+      list.forEach((rec) => {
+        if (rec.status === "extracting" || rec.status === "ingesting" || rec.status === "queued" || rec.status === "uploading") {
+          poll(rec.id);
+        }
+      });
+      if (active) {
+        const rec = list.find((x) => x.id === active);
+        if (rec) document.getElementById("status").textContent = statusLine(rec);
+      } else if (list[0]) {
+        document.getElementById("status").textContent = statusLine(list[0]);
+      }
+    }
+    restoreJobs();
+
+    document.getElementById("form").onsubmit = async (ev) => {
+      ev.preventDefault();
+      const fd = new FormData(ev.target);
+      if (!fd.get("durationSec")) {
+        fd.delete("durationSec");
+      }
+      document.getElementById("status").textContent = "uploading…";
+      const r = await fetch("/api/video-animation", { method: "POST", body: fd });
+      const rec = await r.json();
+      sessionStorage.setItem(ACTIVE_KEY, rec.id);
+      upsertRecording(rec);
+      document.getElementById("status").textContent = statusLine(rec);
+      poll(rec.id);
+    };
+  </script>
+  <script src="/shared/cave-shell.js"></script>
+</body>
+</html>

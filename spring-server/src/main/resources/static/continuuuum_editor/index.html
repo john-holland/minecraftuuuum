@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Unity WebGL preview placeholder</title>
+  <link rel="stylesheet" href="/ucc.css" />
+  <style>
+    body { padding: 1rem; }
+    code { color: #c4e08a; }
+  </style>
+</head>
+<body>
+  <h1>Drawer 2 WebGL preview</h1>
+  <p>A prebuilt Unity WebGL player is not shipped. Point <code>MINECRAFTUUUUM_WEBGL</code> at a Drawer 2 <code>continuuuum_editor</code> build, or drop a Unity WebGL export under <code>static/continuuuum_editor/Build</code>.</p>
+  <p id="q" class="wa-meta"></p>
+  <script>
+    const p = new URLSearchParams(location.search);
+    document.getElementById("q").textContent =
+      "artworkId=" + (p.get("artworkId") || "—") +
+      " · modelSpec=" + (p.get("modelSpec") || "—") +
+      " · granularity=" + (p.get("granularity") || "—");
+  </script>
+</body>
+</html>
