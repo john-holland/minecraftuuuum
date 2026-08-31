@@ -6,7 +6,7 @@ Continuuuum derivative: textual lemmas `{P:lemma|key=value}` bind to Minecraft r
 - `spring-server` — thesaurus, lemma-build (LM Studio Codestral), voxel/PixelLight HTTP, `/video-generation`, Cave/LVM adapters
 - `neoforge-mod` — Minecraft 26.1 NeoForge runtime
 
-Cursor is optional (`optionalFeePlatforms.cursor`). Tenant **`minecraftuuuum`** auto-seeds Mojang/Microsoft 70/30 plus Continuuuum 10% HWM. Sibling of [treewriter](../treewriter) and [unimined-craftantic-craftpressor](../unimined-craftantic-craftpressor) under `prompt-to-minecraft`.
+Sibling of [treewriter](../treewriter) and [unimined-craftantic-craftpressor](../unimined-craftantic-craftpressor) under `prompt-to-minecraft`. The triad README (prompts, layout, retainer notes) is [prompt-to-minecraft-README.md](./prompt-to-minecraft-README.md); the parent folder `README.md` is a symlink to that file.
 
 Tenant snail **`minecraftuuuum`** (`X-Tenant-ID`). Spring UCC stays on **5050**. Set `CONTINUUUUM_LIBRARY_URL` if Continuuuum Flask also wants 5050.
 
