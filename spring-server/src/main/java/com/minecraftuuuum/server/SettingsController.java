@@ -21,9 +21,11 @@ public class SettingsController {
     private String lmStudioModel;
 
     private final ContinuuuumTenantClient tenantClient;
+    private final LegalUnityService legalUnity;
 
-    public SettingsController(ContinuuuumTenantClient tenantClient) {
+    public SettingsController(ContinuuuumTenantClient tenantClient, LegalUnityService legalUnity) {
         this.tenantClient = tenantClient;
+        this.legalUnity = legalUnity;
     }
 
     @GetMapping("/settings")
@@ -41,6 +43,10 @@ public class SettingsController {
         Map<String, Object> split = tenantClient.fetchTenantSplit();
         out.put("retainer", split);
         out.put("oauth", tenantClient.fetchOauthStatus());
+        Map<String, Object> legal = legalUnity.status();
+        out.put("ironMan", legal.get("ironMan"));
+        out.put("displayMode", legal.get("displayMode"));
+        out.put("unitySession", legal.get("session"));
         return out;
     }
 }

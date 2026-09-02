@@ -26,6 +26,21 @@
       </select>
       <button>Ingest</button>
     </form>
+    <h2>Screenshot (no clone)</h2>
+    <p class="wa-meta">Stores one face, then extrapolates neighbors from common points.</p>
+    <form id="iso-form">
+      <input type="file" name="image" accept="image/*" required />
+      <input name="artworkId" placeholder="artwork id" value="demo" />
+      <select name="face">
+        <option>north</option><option>south</option><option>east</option>
+        <option>west</option><option>up</option><option>down</option>
+      </select>
+      <button>Store screenshot</button>
+    </form>
+    <p>
+      <button type="button" id="iso-extra">Extrapolate</button>
+      <button type="button" id="iso-join">Join 2D → 3D</button>
+    </p>
     <div id="comp"></div>
     <pre id="out"></pre>
   </main>
@@ -50,6 +65,28 @@
           artworkId: art, face: fd.get("face"), imageUrl: url,
         });
       }
+    };
+    document.getElementById("iso-form").onsubmit = async (ev) => {
+      ev.preventDefault();
+      const fd = new FormData(ev.target);
+      const rec = await fetch("/api/iso/screenshots", { method: "POST", body: fd }).then((r) => r.json());
+      document.getElementById("out").textContent = JSON.stringify(rec, null, 2);
+    };
+    document.getElementById("iso-extra").onclick = async () => {
+      const art = document.querySelector("#iso-form [name=artworkId]").value;
+      const rec = await fetch("/api/iso/extrapolate", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ artworkId: art })
+      }).then((r) => r.json());
+      document.getElementById("out").textContent = JSON.stringify(rec, null, 2);
+    };
+    document.getElementById("iso-join").onclick = async () => {
+      const art = document.querySelector("#iso-form [name=artworkId]").value;
+      const rec = await fetch("/api/iso/join", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ artworkId: art })
+      }).then((r) => r.json());
+      document.getElementById("out").textContent = JSON.stringify(rec, null, 2);
     };
   </script>
   <script src="/shared/cave-shell.js"></script>

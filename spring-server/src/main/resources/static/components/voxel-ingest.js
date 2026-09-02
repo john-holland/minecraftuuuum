@@ -284,9 +284,17 @@
       imageData = pixelate(img, grid);
       drawGrids();
       renderPalette();
+      const slimMap = opts.slimNeighbors || {};
       FACES.filter((f) => f !== face).forEach((f, i) => {
         const slim = wrap.querySelector(i === 0 ? ".slim-up" : ".slim-down") || wrap.querySelector(".slim-up");
-        slim.style.background = "linear-gradient(90deg,#444,#888)";
+        const hexes = slimMap[f];
+        if (Array.isArray(hexes) && hexes.length) {
+          slim.classList.add("slim-pixels");
+          slim.style.background = "none";
+          slim.innerHTML = hexes.map((h) => "<span style=\"background:" + h + "\"></span>").join("");
+        } else {
+          slim.style.background = "linear-gradient(90deg,#444,#888)";
+        }
         slim.onclick = () => {
           face = f;
           checklist();

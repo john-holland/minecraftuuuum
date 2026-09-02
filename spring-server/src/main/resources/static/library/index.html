@@ -83,7 +83,10 @@
         " · creator " + Math.round((ret.creatorPct || 0.7) * 100) + "%" +
         " / Microsoft " + Math.round((ret.platformPct || 0.3) * 100) + "%" +
         " / HWM " + Math.round((ret.continuuuumHwmPct || 0.1) * 100) + "%" +
-        " · cursor optional=" + s.optionalFeePlatforms.cursor;
+        " · cursor optional=" + s.optionalFeePlatforms.cursor +
+        " · ironMan=" + s.ironMan +
+        " · display=" + s.displayMode +
+        (s.unitySession ? " · unity " + s.unitySession.status : " · unity off");
       const link = document.getElementById("lobbies-link");
       if (link && s.continuuuumBase) {
         link.href = String(s.continuuuumBase).replace(/\/$/, "") + "/game-lobbies";

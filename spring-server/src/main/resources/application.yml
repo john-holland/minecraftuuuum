@@ -26,5 +26,6 @@ minecraftuuuum:
   mocap-root: ${MOCAPANYTHING_ROOT:D:/Development/MocapAnything}
   modly-root: ${MODLY_ROOT:D:/Development/modly}
   webgl-preview: ${MINECRAFTUUUUM_WEBGL:http://127.0.0.1:5050/continuuuum_editor/index.html}
+  git-root: ${MINECRAFTUUUUM_GIT_ROOT:}
   optional-fee-platforms:
     cursor: ${CURSOR_OPTIONAL_FEE:false}

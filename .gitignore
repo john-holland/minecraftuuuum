@@ -7,3 +7,4 @@ build/
 *.iml
 run/
 src/generated/
+spring-server/src/main/resources/static/continuuuum_editor/Build/

@@ -21,8 +21,11 @@ import java.util.Map;
 public class VideoGenerationController {
     private final VideoGenerationService gen;
 
-    public VideoGenerationController(VideoGenerationService gen) {
+    private final IsoService iso;
+
+    public VideoGenerationController(VideoGenerationService gen, IsoService iso) {
         this.gen = gen;
+        this.iso = iso;
     }
 
     @GetMapping("/features")
@@ -96,6 +99,32 @@ public class VideoGenerationController {
             steps = n.intValue();
         }
         return gen.invokeModly(artworkId, t, prompt, fmt, steps);
+    }
+
+    @PostMapping("/stopmo")
+    public Map<String, Object> stopmo(@RequestBody Map<String, Object> body) throws Exception {
+        String artworkId = body.get("artworkId") == null ? null : String.valueOf(body.get("artworkId"));
+        if (artworkId == null || artworkId.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "artworkId");
+        }
+        Integer t = body.get("t") instanceof Number n ? n.intValue() : null;
+        return iso.cacheStopmo(artworkId, t);
+    }
+
+    @GetMapping("/playback/{artworkId}")
+    public Map<String, Object> playback(
+            @PathVariable String artworkId,
+            @RequestParam(value = "t", required = false) String frames,
+            @RequestParam(value = "stopMotion", defaultValue = "false") boolean stopMotion,
+            @RequestParam(value = "displayMode", required = false) String displayMode)
+            throws Exception {
+        java.util.List<Integer> ts = new java.util.ArrayList<>();
+        if (frames != null && !frames.isBlank()) {
+            for (String p : frames.split(",")) {
+                ts.add(Integer.parseInt(p.trim()));
+            }
+        }
+        return iso.playback(artworkId, ts, stopMotion, displayMode);
     }
 
     @GetMapping("/ping")

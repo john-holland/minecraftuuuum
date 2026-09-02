@@ -32,8 +32,11 @@ public class VideoGenerationService {
     @Value("${minecraftuuuum.mocap-root}")
     private String mocapRoot;
 
-    public VideoGenerationService(CraftpressorDb db) {
+    private final LegalUnityService legal;
+
+    public VideoGenerationService(CraftpressorDb db, LegalUnityService legal) {
         this.db = db;
+        this.legal = legal;
     }
 
     public Map<String, Object> features() {
@@ -53,10 +56,15 @@ public class VideoGenerationService {
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("features", list);
         boolean webglBuild = getClass().getResource("/static/continuuuum_editor/Build") != null;
+        Map<String, Object> legalStatus = legal.status();
         out.put("webglPreview", webglPreview);
         out.put("webglBuild", webglBuild);
         out.put("modlyRoot", modlyRoot);
         out.put("granularityMinecraft", GranularitySettings.minecraft().asMap());
+        out.put("displayMode", legalStatus.get("displayMode"));
+        out.put("ironMan", legalStatus.get("ironMan"));
+        out.put("unityAllowed", legalStatus.get("unityAllowed"));
+        out.put("unitySession", legalStatus.get("session"));
         return out;
     }
 
@@ -113,15 +121,21 @@ public class VideoGenerationService {
             return out;
         }
         int frame = t == null ? -1 : t;
-        Map<String, Object> img = db.getArtworkMedia(artworkId, frame, "source_image");
+        Map<String, Object> img = db.getArtworkMedia(artworkId, frame, "face_atlas");
+        String imageKind = "face_atlas";
+        if (img == null || img.get("blob") == null) {
+            img = db.getArtworkMedia(artworkId, frame, "source_image");
+            imageKind = "source_image";
+        }
         if (img == null || img.get("blob") == null) {
             out.put("ok", false);
-            out.put("error", "no source_image for artwork");
+            out.put("error", "no source_image or face_atlas for artwork");
             return out;
         }
         Path work = Files.createTempDirectory("modly-" + artworkId);
         Path in = work.resolve("input.png");
         Files.write(in, (byte[]) img.get("blob"));
+        out.put("imageKind", imageKind);
         String fmt = meshFormat == null || meshFormat.isBlank() ? "glb" : meshFormat.replaceAll("[^a-z0-9]", "");
         Path outMesh = work.resolve("model." + fmt);
         List<String> cmd = new ArrayList<>();
@@ -143,6 +157,13 @@ public class VideoGenerationService {
         if (steps != null && steps > 0) {
             cmd.add("--steps");
             cmd.add(String.valueOf(steps));
+        }
+        Map<String, Object> mask = db.getArtworkMedia(artworkId, frame, "source_mask");
+        if (mask != null && mask.get("blob") != null) {
+            Path maskPath = work.resolve("mask.png");
+            Files.write(maskPath, (byte[]) mask.get("blob"));
+            cmd.add("--mask");
+            cmd.add(maskPath.toAbsolutePath().toString());
         }
         ProcessBuilder pb = new ProcessBuilder(cmd);
         pb.directory(root.toFile());

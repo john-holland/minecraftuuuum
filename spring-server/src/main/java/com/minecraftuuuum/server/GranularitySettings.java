@@ -16,6 +16,7 @@ public final class GranularitySettings {
     public String skinLayout = "64x64";
     public int maxBones = 33;
     public boolean snapToGrid = true;
+    public int faceGrid = 8;
 
     public static GranularitySettings minecraft() {
         return new GranularitySettings();
@@ -31,6 +32,7 @@ public final class GranularitySettings {
         m.put("skinLayout", skinLayout);
         m.put("maxBones", maxBones);
         m.put("snapToGrid", snapToGrid);
+        m.put("faceGrid", faceGrid);
         return m;
     }
 
@@ -60,6 +62,9 @@ public final class GranularitySettings {
         if (body.get("snapToGrid") != null) {
             g.snapToGrid = Boolean.parseBoolean(String.valueOf(body.get("snapToGrid")));
         }
+        if (body.get("faceGrid") != null) {
+            g.faceGrid = num(body.get("faceGrid")).intValue();
+        }
         String preset = body.get("preset") == null ? null : String.valueOf(body.get("preset"));
         g.preset = PRESET_MINECRAFT.equals(preset) && matchesMinecraft(g) ? PRESET_MINECRAFT : PRESET_CUSTOM;
         if (PRESET_MINECRAFT.equals(preset) && body.size() <= 1) {
@@ -76,7 +81,8 @@ public final class GranularitySettings {
                 && Double.compare(g.voxelCell, m.voxelCell) == 0
                 && m.skinLayout.equals(g.skinLayout)
                 && g.maxBones == m.maxBones
-                && g.snapToGrid == m.snapToGrid;
+                && g.snapToGrid == m.snapToGrid
+                && g.faceGrid == m.faceGrid;
     }
 
     private static Number num(Object v) {

@@ -46,7 +46,7 @@ public class LvmEventStore {
     }
 
     @PreDestroy
-    void close() throws SQLException {
+    public void close() throws SQLException {
         conn.close();
     }
 
@@ -59,6 +59,12 @@ public class LvmEventStore {
         ev.put("timestamp", Instant.now().toString());
         ev.put("meta", meta == null ? Map.of() : meta);
         return ev;
+    }
+
+    public void legalEvent(String eventType, Map<String, Object> meta) {
+        String trace = "legal-unity";
+        Map<String, Object> ev = lvm20Event(eventType, trace, meta);
+        append(trace, List.of(ev));
     }
 
     public List<String> afterCaveRouteMutation(String route, String tenant, String service, String traceId) {

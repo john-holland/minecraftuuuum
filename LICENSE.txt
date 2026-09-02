@@ -7,3 +7,5 @@ MINECRAFT is a trademark of Mojang AB. Microsoft, Mojang, and related marks are 
 No unofficial Minecraft assets (textures, models, sounds, or other Mojang/Microsoft copyrighted game content) are vendored in this repository.
 
 Modly (https://github.com/lightningpixel/modly), MediaPipe, and MoCapAnything weights are invoked locally when present and are not redistributed here.
+
+Unity Editor, Hub, and WebGL player binaries are not vendored. A WebGL preview is user-exported into static/continuuuum_editor/Build (gitignored) or pointed at via MINECRAFTUUUUM_WEBGL. Screenshots used by the isometric extrapolator are user-captured; no unofficial Minecraft assets ship in this repository.

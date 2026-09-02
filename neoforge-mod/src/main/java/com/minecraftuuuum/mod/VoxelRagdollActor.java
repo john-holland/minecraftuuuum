@@ -46,4 +46,15 @@ public final class VoxelRagdollActor {
     public static VoxelRagdollActor minecraft() {
         return new VoxelRagdollActor();
     }
+
+    /**
+     * Playback clip contract from UCC {@code GET /api/video-generation/playback/{artworkId}}:
+     * artworkId, frame t, dirty tree-node mesh refs, granularity. Physics still out of scope.
+     */
+    public record PlaybackClip(
+            String artworkId,
+            int t,
+            String nodeId,
+            String meshKind,
+            int pixelGrid) {}
 }

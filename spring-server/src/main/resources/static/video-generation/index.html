@@ -95,9 +95,87 @@
     </section>
 
     <section>
-      <h2>Unity WebGL preview</h2>
-      <p id="webgl-hint" class="wa-meta"></p>
-      <iframe id="webgl" class="webgl-frame" title="Drawer 2 WebGL preview"></iframe>
+      <h2>Display</h2>
+      <div class="iron-row">
+        <label class="switch"><input type="radio" name="displayMode" value="web" checked /> Web display</label>
+        <label class="switch"><input type="radio" name="displayMode" value="unity_webgl" /> Unity WebGL</label>
+        <label class="switch"><input type="checkbox" id="iron-man" checked /> Iron Man legal mode</label>
+      </div>
+      <p id="legal-status" class="wa-meta">Not legal advice. Web display needs no Unity license.</p>
+      <div id="legal-box" class="legal-box">
+        <p class="wa-meta">Will redistribute WebGL <input type="checkbox" id="will-redist" /></p>
+        <p class="wa-meta">Will publish Minecraft / Marketplace <input type="checkbox" id="will-pub" /></p>
+        <label>Unity Editor tier
+          <select id="unity-tier">
+            <option value="none">none</option>
+            <option value="personal">Personal</option>
+            <option value="pro">Pro</option>
+            <option value="enterprise">Enterprise</option>
+          </select>
+        </label>
+        <div id="req-list" class="li-checks"></div>
+        <p>
+          <button type="button" id="legal-refresh">Refresh requirements</button>
+          <button type="button" id="unity-install">Install Unity WebGL viewer</button>
+          <button type="button" id="unity-backout">Back out</button>
+        </p>
+        <p id="legal-msg" class="wa-meta"></p>
+        <pre id="commit-log" class="commit-log"></pre>
+      </div>
+      <div id="web-preview" class="web-preview">
+        <h3>Web display</h3>
+        <p id="web-hint" class="wa-meta">Voxel + joined mesh. No Unity player.</p>
+        <p><a id="mesh-link" hidden href="#">Download generated_mesh</a></p>
+        <img id="atlas-prev" class="img-preview" alt="" hidden />
+      </div>
+      <div id="unity-wrap" hidden>
+        <h3>Unity WebGL preview</h3>
+        <p id="webgl-hint" class="wa-meta"></p>
+        <iframe id="webgl" class="webgl-frame" title="Drawer 2 WebGL preview"></iframe>
+      </div>
+    </section>
+
+    <section>
+      <h2>Screenshot isometric extrapolator</h2>
+      <p class="wa-meta">Upload Minecraft screenshots per face. Common points join 2D views. Missing faces are warped — not cloned.</p>
+      <form id="iso-form">
+        <label>artworkId <input id="iso-art" placeholder="art_…" /></label>
+        <label>Face
+          <select id="iso-face">
+            <option>north</option><option>south</option><option>east</option>
+            <option>west</option><option>up</option><option>down</option>
+          </select>
+        </label>
+        <label>Screenshot <input type="file" id="iso-file" accept="image/*" /></label>
+        <button type="submit">Store screenshot</button>
+      </form>
+      <p>
+        <button type="button" id="iso-suggest">Suggest face landmarks</button>
+        <button type="button" id="iso-extra">Extrapolate missing faces</button>
+        <button type="button" id="iso-join">Join 2D → 3D</button>
+        <button type="button" id="iso-tree">Split convex tree</button>
+        <label class="switch"><input type="checkbox" id="stopmo" /> Stop-motion frames</label>
+        <button type="button" id="iso-stopmo">Cache dirty branches</button>
+        <button type="button" id="iso-play">Playback clip</button>
+      </p>
+      <form id="pt-form">
+        <label>pointId <input id="pt-id" placeholder="leftEye" /></label>
+        <label>kind
+          <select id="pt-kind">
+            <option value="face_landmark">face_landmark</option>
+            <option value="block_corner">block_corner</option>
+            <option value="custom">custom</option>
+          </select>
+        </label>
+        <label>face <select id="pt-face">
+          <option>north</option><option>south</option><option>east</option>
+          <option>west</option><option>up</option><option>down</option>
+        </select></label>
+        <label>u <input id="pt-u" type="number" value="8" /></label>
+        <label>v <input id="pt-v" type="number" value="4" /></label>
+        <button type="submit">Add common point</button>
+      </form>
+      <pre id="iso-out" class="commit-log"></pre>
     </section>
   </main>
   <script src="/components/voxel-ingest.js"></script>
@@ -109,6 +187,9 @@
     let features = [];
     let webglPreview = "/continuuuum_editor/index.html";
     let webglBuild = false;
+    let unityAllowed = false;
+    let displayMode = "web";
+    let legalItems = [];
 
     function granFromForm() {
       const g = {
@@ -155,16 +236,199 @@
 
     function refreshPreview() {
       const g = granFromForm();
+      const art = document.getElementById("artworkId").value || document.getElementById("iso-art").value || "";
+      document.getElementById("web-preview").hidden = displayMode !== "web";
+      document.getElementById("unity-wrap").hidden = !(displayMode === "unity_webgl" && unityAllowed);
+      const mesh = document.getElementById("mesh-link");
+      if (art) {
+        mesh.href = "/api/video-generation/media/" + encodeURIComponent(art) + "/generated_mesh";
+        mesh.hidden = false;
+        const atlas = document.getElementById("atlas-prev");
+        atlas.src = "/api/video-generation/media/" + encodeURIComponent(art) + "/face_atlas";
+        atlas.hidden = false;
+      }
+      if (displayMode !== "unity_webgl" || !unityAllowed) {
+        return;
+      }
       const q = new URLSearchParams({
-        artworkId: document.getElementById("artworkId").value || "",
+        artworkId: art,
         granularity: JSON.stringify(g),
         modelSpec: checkedFeats().join(",")
       });
       document.getElementById("webgl").src = webglPreview + (webglPreview.indexOf("?") >= 0 ? "&" : "?") + q.toString();
       document.getElementById("webgl-hint").textContent = webglBuild
         ? "Drawer 2 WebGL build detected."
-        : "Placeholder — no Unity WebGL Build/ folder shipped. Set MINECRAFTUUUUM_WEBGL or drop a build under static/continuuuum_editor/Build.";
+        : "Placeholder — export a Unity WebGL player to static/continuuuum_editor/Build or set MINECRAFTUUUUM_WEBGL.";
     }
+
+    function applyLegal(st) {
+      displayMode = st.displayMode || "web";
+      unityAllowed = !!st.unityAllowed;
+      document.getElementById("iron-man").checked = st.ironMan !== false;
+      document.querySelectorAll("input[name=displayMode]").forEach((r) => {
+        r.checked = r.value === displayMode;
+      });
+      const sess = st.session;
+      document.getElementById("legal-status").textContent =
+        "Iron Man=" + (st.ironMan !== false) + " · display=" + displayMode +
+        (sess ? " · Unity session " + sess.status + " tag=" + (sess.startTag || "—") : " · no Unity session");
+      document.getElementById("legal-box").classList.toggle("ok", unityAllowed);
+      refreshPreview();
+    }
+
+    async function loadLegal() {
+      const st = await fetch("/api/legal-unity/status").then((r) => r.json());
+      applyLegal(st);
+      await refreshReqs();
+      const log = await fetch("/api/legal-unity/commit-log").then((r) => r.json());
+      document.getElementById("commit-log").textContent = JSON.stringify(log, null, 2);
+    }
+
+    async function refreshReqs() {
+      const body = {
+        displayMode: document.querySelector("input[name=displayMode]:checked").value,
+        willRedistributeWebgl: document.getElementById("will-redist").checked,
+        willPublishMinecraft: document.getElementById("will-pub").checked,
+        unityTier: document.getElementById("unity-tier").value
+      };
+      const rec = await fetch("/api/legal-unity/requirements", {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body)
+      }).then((r) => r.json());
+      legalItems = rec.items || [];
+      document.getElementById("req-list").innerHTML = legalItems.map((it) =>
+        '<label class="li-check"><input type="checkbox" data-ack="' + it.id + '" /> ' + it.label +
+        (it.href ? ' <a href="' + it.href + '" target="_blank" rel="noreferrer">terms</a>' : "") +
+        "</label>").join("");
+    }
+
+    document.getElementById("legal-refresh").onclick = refreshReqs;
+    document.getElementById("iron-man").onchange = async () => {
+      const st = await fetch("/api/legal-unity/iron-man", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ironMan: document.getElementById("iron-man").checked })
+      }).then((r) => r.json());
+      applyLegal(st);
+    };
+    document.querySelectorAll("input[name=displayMode]").forEach((r) => {
+      r.onchange = async () => {
+        const wanted = document.querySelector("input[name=displayMode]:checked").value;
+        const res = await fetch("/api/legal-unity/display-mode", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ displayMode: wanted })
+        });
+        const st = await res.json();
+        if (!res.ok) {
+          document.getElementById("legal-msg").textContent = st.message || "display mode blocked";
+          await loadLegal();
+          return;
+        }
+        applyLegal(st);
+        refreshReqs();
+      };
+    });
+    document.getElementById("unity-install").onclick = async () => {
+      const acks = Array.from(document.querySelectorAll("#req-list input[data-ack]:checked")).map((x) => x.dataset.ack);
+      const res = await fetch("/api/legal-unity/install", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          acknowledgments: acks,
+          willRedistributeWebgl: document.getElementById("will-redist").checked,
+          willPublishMinecraft: document.getElementById("will-pub").checked,
+          unityTier: document.getElementById("unity-tier").value
+        })
+      });
+      const st = await res.json();
+      document.getElementById("legal-msg").textContent = res.ok
+        ? (st.installHint || "installed")
+        : (st.message || "install blocked");
+      applyLegal(st);
+      const log = await fetch("/api/legal-unity/commit-log").then((r) => r.json());
+      document.getElementById("commit-log").textContent = JSON.stringify(log, null, 2);
+    };
+    document.getElementById("unity-backout").onclick = async () => {
+      const res = await fetch("/api/legal-unity/back-out", { method: "POST" });
+      const st = await res.json();
+      document.getElementById("legal-msg").textContent = res.ok ? "backed out to web display" : (st.message || "back out failed");
+      applyLegal(st);
+      document.getElementById("commit-log").textContent = JSON.stringify(st.commitLog || st, null, 2);
+    };
+
+    function isoArt() {
+      return document.getElementById("iso-art").value || document.getElementById("artworkId").value;
+    }
+    document.getElementById("iso-form").onsubmit = async (ev) => {
+      ev.preventDefault();
+      const fd = new FormData();
+      const id = isoArt();
+      if (id) fd.set("artworkId", id);
+      fd.set("face", document.getElementById("iso-face").value);
+      const f = document.getElementById("iso-file").files[0];
+      if (f) fd.set("image", f);
+      fd.set("granularity", JSON.stringify(granFromForm()));
+      const rec = await fetch("/api/iso/screenshots", { method: "POST", body: fd }).then((r) => r.json());
+      if (rec.artworkId) {
+        document.getElementById("iso-art").value = rec.artworkId;
+        document.getElementById("artworkId").value = rec.artworkId;
+      }
+      document.getElementById("iso-out").textContent = JSON.stringify(rec, null, 2);
+    };
+    document.getElementById("pt-form").onsubmit = async (ev) => {
+      ev.preventDefault();
+      const rec = await fetch("/api/iso/points", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          artworkId: isoArt(),
+          pointId: document.getElementById("pt-id").value,
+          kind: document.getElementById("pt-kind").value,
+          views: [{
+            face: document.getElementById("pt-face").value,
+            u: Number(document.getElementById("pt-u").value),
+            v: Number(document.getElementById("pt-v").value)
+          }]
+        })
+      }).then((r) => r.json());
+      document.getElementById("iso-out").textContent = JSON.stringify(rec, null, 2);
+    };
+    document.getElementById("iso-suggest").onclick = async () => {
+      const art = isoArt();
+      const rec = await fetch("/api/iso/points/" + encodeURIComponent(art) + "/suggest-face", { method: "POST" }).then((r) => r.json());
+      document.getElementById("iso-out").textContent = JSON.stringify(rec, null, 2);
+    };
+    document.getElementById("iso-extra").onclick = async () => {
+      const rec = await fetch("/api/iso/extrapolate", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ artworkId: isoArt(), acceptedExtrapolated: [] })
+      }).then((r) => r.json());
+      document.getElementById("iso-out").textContent = JSON.stringify(rec, null, 2);
+    };
+    document.getElementById("iso-join").onclick = async () => {
+      const rec = await fetch("/api/iso/join", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ artworkId: isoArt(), granularity: granFromForm() })
+      }).then((r) => r.json());
+      document.getElementById("iso-out").textContent = JSON.stringify(rec, null, 2);
+      refreshPreview();
+    };
+    document.getElementById("iso-tree").onclick = async () => {
+      const rec = await fetch("/api/iso/split-tree", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ artworkId: isoArt() })
+      }).then((r) => r.json());
+      document.getElementById("iso-out").textContent = JSON.stringify(rec, null, 2);
+    };
+    document.getElementById("iso-stopmo").onclick = async () => {
+      const rec = await fetch("/api/video-generation/stopmo", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ artworkId: isoArt() })
+      }).then((r) => r.json());
+      document.getElementById("iso-out").textContent = JSON.stringify(rec, null, 2);
+    };
+    document.getElementById("iso-play").onclick = async () => {
+      const rec = await fetch("/api/video-generation/playback/" + encodeURIComponent(isoArt())
+        + "?stopMotion=" + document.getElementById("stopmo").checked
+        + "&displayMode=" + displayMode).then((r) => r.json());
+      document.getElementById("iso-out").textContent = JSON.stringify(rec, null, 2);
+    };
 
     function propHtml(f) {
       if (f.id.indexOf("modly") === 0) {
@@ -209,9 +473,12 @@
       features = m.features || [];
       webglPreview = m.webglPreview || webglPreview;
       webglBuild = !!m.webglBuild;
+      unityAllowed = !!m.unityAllowed;
+      displayMode = m.displayMode || "web";
       if (m.granularityMinecraft) applyGran(m.granularityMinecraft);
       renderFeatures();
       refreshPreview();
+      loadLegal();
       fetch("/api/video-animation/models").then((r) => r.json()).then((mod) => {
         document.querySelectorAll(".det-profile").forEach((sel) => {
           sel.innerHTML = "<option value=\"\">(from actor)</option>" +

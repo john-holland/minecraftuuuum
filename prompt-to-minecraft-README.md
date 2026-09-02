@@ -33,6 +33,10 @@ UCC pages: `http://127.0.0.1:5050/library`, `http://127.0.0.1:5050/lemma-library
 ✓ video animation bone alignment
 ✓ multi processing for video
 ✓ output for use in blender or 3ds max or maya
+✓ video-generation web display vs Unity WebGL with Iron Man legal mode, git commit+tag tracking, and back-out
+✓ screenshot isometric extrapolator with common points, 2D→3D join, micro-expression face region, stop-motion branch cache, convex tree splitter
+✓ video-generation web display vs Unity WebGL with Iron Man legal mode, git commit+tag tracking, and back-out
+✓ screenshot isometric extrapolator with common points, 2D→3D join, micro-expression face region, stop-motion branch cache, convex tree splitter
 
 ---
 prompts:
